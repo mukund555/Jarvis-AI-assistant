@@ -1,14 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Jarvis Voice Chatbot</title>
+  <style>
+    #transcript, #response {
+      margin-top: 20px;
+      font-size: 18px;
+    }
+  </style>
 </head>
 <body>
   <button id="start">🎤 Speak</button>
-  <button id="stop">stop </button>
+  <button id="stop">⏹️ Stop</button>
   <div id="transcript"></div>
-  <div id="response" aria-setsize="500px"></div>
+  <div id="response"></div>
+
   <script>
     const startBtn = document.getElementById('start');
     const stopBtn = document.getElementById('stop');
@@ -16,29 +23,68 @@
     const responseDiv = document.getElementById('response');
     const synth = window.speechSynthesis;
 
-    startBtn.onclick = () => {
-      const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    // Initialize recognition once
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Speech Recognition API not supported in this browser.");
+    }
+    const recognition = SpeechRecognition ? new SpeechRecognition() : null;
+
+    if (recognition) {
       recognition.lang = 'en-US';
-      recognition.start();
+      recognition.interimResults = false;
+      recognition.continuous = false;
+
+      recognition.onstart = () => {
+        startBtn.disabled = true;
+        responseDiv.textContent = 'Listening...';
+      };
+
       recognition.onresult = async (event) => {
         const text = event.results[0][0].transcript;
         transcriptDiv.textContent = 'You: ' + text;
-        // Send to backend
-        const res = await fetch('/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ input: text })
-        });
-        const data = await res.json();
-        responseDiv.textContent = 'Jarvis: ' + data.response;
-        // Speak response
-        const utter = new SpeechSynthesisUtterance(data.response);
-        synth.speak(utter);
+
+        try {
+          const res = await fetch('/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ input: text })
+          });
+
+          const data = await res.json();
+          responseDiv.textContent = 'Jarvis: ' + data.response;
+
+          const utter = new SpeechSynthesisUtterance(data.response);
+          synth.speak(utter);
+        } catch (err) {
+          responseDiv.textContent = 'Error connecting to server.';
+          console.error(err);
+        }
       };
+
+      recognition.onerror = (event) => {
+        responseDiv.textContent = 'Error: ' + event.error;
+        startBtn.disabled = false;
+      };
+
+      recognition.onend = () => {
+        startBtn.disabled = false;
+        if (!synth.speaking) {
+          responseDiv.textContent += ' (You can speak again)';
+        }
+      };
+    }
+
+    startBtn.onclick = () => {
+      if (recognition) recognition.start();
     };
+
     stopBtn.onclick = () => {
-    synth.cancel();
-  };
+      if (recognition) recognition.stop();  // Stop listening
+      if (synth.speaking) synth.cancel();   // Stop speech
+      responseDiv.textContent = 'Stopped.';
+      startBtn.disabled = false;
+    };
   </script>
 </body>
 </html>
