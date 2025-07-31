@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Jarvis Voice Chatbot</title>
+</head>
+<body>
+  <button id="start">🎤 Speak</button>
+  <button id="stop">stop </button>
+  <div id="transcript"></div>
+  <div id="response" aria-setsize="500px"></div>
+  <script>
+    const startBtn = document.getElementById('start');
+    const stopBtn = document.getElementById('stop');
+    const transcriptDiv = document.getElementById('transcript');
+    const responseDiv = document.getElementById('response');
+    const synth = window.speechSynthesis;
+
+    startBtn.onclick = () => {
+      const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+      recognition.lang = 'en-US';
+      recognition.start();
+      recognition.onresult = async (event) => {
+        const text = event.results[0][0].transcript;
+        transcriptDiv.textContent = 'You: ' + text;
+        // Send to backend
+        const res = await fetch('/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ input: text })
+        });
+        const data = await res.json();
+        responseDiv.textContent = 'Jarvis: ' + data.response;
+        // Speak response
+        const utter = new SpeechSynthesisUtterance(data.response);
+        synth.speak(utter);
+      };
+    };
+    stopBtn.onclick = () => {
+    synth.cancel();
+  };
+  </script>
+</body>
+</html>
